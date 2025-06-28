@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  trello-mcp:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: trello-mcp-server
+    environment:
+      - TRELLO_API_KEY=${TRELLO_API_KEY}
+      - TRELLO_TOKEN=${TRELLO_TOKEN}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - API_TIMEOUT=${API_TIMEOUT:-10000}
+    ports:
+      - "${MCP_PORT:-3000}:3000"
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - mcp-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('Health check')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Development service
+  trello-mcp-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: trello-mcp-dev
+    environment:
+      - TRELLO_API_KEY=${TRELLO_API_KEY}
+      - TRELLO_TOKEN=${TRELLO_TOKEN}
+      - LOG_LEVEL=debug
+      - API_TIMEOUT=10000
+      - NODE_ENV=development
+    ports:
+      - "${MCP_DEV_PORT:-3001}:3000"
+      - "9229:9229"  # Debug port
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
+      - ./logs:/workspace/logs
+    networks:
+      - mcp-network
+    profiles:
+      - dev
+
+networks:
+  mcp-network:
+    driver: bridge

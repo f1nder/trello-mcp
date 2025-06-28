@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "trello": {
+      "command": "node",
+      "args": ["./dist/index.js"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "TRELLO_API_KEY": "${env:TRELLO_API_KEY}",
+        "TRELLO_TOKEN": "${env:TRELLO_TOKEN}",
+        "LOG_LEVEL": "info"
+      },
+      "autoStart": true,
+      "description": "Trello MCP Server for board and card management"
+    }
+  },
+  "logging": {
+    "level": "info",
+    "file": "./logs/cursor-mcp.log"
+  },
+  "timeout": 30000
+}

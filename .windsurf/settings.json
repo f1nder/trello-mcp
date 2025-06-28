@@ -1,0 +1,45 @@
+{
+  "mcp": {
+    "servers": {
+      "trello": {
+        "command": "node",
+        "args": ["dist/index.js"],
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "TRELLO_API_KEY": "${env:TRELLO_API_KEY}",
+          "TRELLO_TOKEN": "${env:TRELLO_TOKEN}",
+          "LOG_LEVEL": "info"
+        },
+        "autoStart": true,
+        "timeout": 30000
+      }
+    },
+    "logging": {
+      "level": "info",
+      "destination": "./logs/windsurf-mcp.log"
+    }
+  },
+  "ai": {
+    "providers": {
+      "claude": {
+        "mcpServers": ["trello"],
+        "contextWindow": 200000,
+        "maxTokens": 4096
+      }
+    },
+    "features": {
+      "codeGeneration": true,
+      "codeReview": true,
+      "debugging": true,
+      "testing": true
+    }
+  },
+  "workspace": {
+    "autoSave": true,
+    "formatOnSave": true,
+    "linting": {
+      "enabled": true,
+      "onSave": true
+    }
+  }
+}

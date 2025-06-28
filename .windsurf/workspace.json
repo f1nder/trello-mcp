@@ -1,0 +1,47 @@
+{
+  "name": "Trello MCP Development",
+  "description": "Development workspace with Trello integration via MCP",
+  "version": "1.0.0",
+  "mcpServers": ["trello"],
+  "tools": {
+    "trello": {
+      "enabled": true,
+      "autoStart": true,
+      "capabilities": [
+        "board_management",
+        "list_operations",
+        "card_operations", 
+        "label_management",
+        "checklist_management",
+        "member_management"
+      ]
+    }
+  },
+  "ai": {
+    "contextSources": [
+      "trello_boards",
+      "project_files",
+      "documentation"
+    ],
+    "suggestions": {
+      "taskManagement": true,
+      "codeGeneration": true,
+      "projectPlanning": true
+    }
+  },
+  "integrations": {
+    "trello": {
+      "webhooks": false,
+      "realTimeSync": false,
+      "autoCreateTasks": true
+    }
+  },
+  "development": {
+    "hotReload": true,
+    "debugging": true,
+    "testing": {
+      "framework": "jest",
+      "coverage": true
+    }
+  }
+}

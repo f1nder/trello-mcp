@@ -1,0 +1,48 @@
+{
+  "name": "Trello MCP Development",
+  "build": {
+    "dockerfile": "../Dockerfile.dev"
+  },
+  "forwardPorts": [3000, 9229],
+  "postCreateCommand": "npm install && npm run build",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.vscode-typescript-next",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-json",
+        "bradlc.vscode-tailwindcss",
+        "ms-vscode.vscode-eslint",
+        "ms-vscode.vscode-docker"
+      ],
+      "settings": {
+        "typescript.preferences.includePackageJsonAutoImports": "auto",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": true
+        },
+        "mcp.servers": {
+          "trello": {
+            "command": "node",
+            "args": ["dist/index.js"],
+            "env": {
+              "TRELLO_API_KEY": "${TRELLO_API_KEY}",
+              "TRELLO_TOKEN": "${TRELLO_TOKEN}"
+            }
+          }
+        }
+      }
+    }
+  },
+  "remoteEnv": {
+    "TRELLO_API_KEY": "${localEnv:TRELLO_API_KEY}",
+    "TRELLO_TOKEN": "${localEnv:TRELLO_TOKEN}",
+    "LOG_LEVEL": "debug"
+  },
+  "mounts": [
+    "source=${localWorkspaceFolder}/.env,target=/workspace/.env,type=bind,consistency=cached"
+  ]
+}

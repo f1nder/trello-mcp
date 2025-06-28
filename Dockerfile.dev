@@ -1,0 +1,24 @@
+FROM node:18
+
+WORKDIR /workspace
+
+# Install global tools for development
+RUN npm install -g @modelcontextprotocol/inspector typescript nodemon
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Create logs directory
+RUN mkdir -p logs
+
+# Expose development ports
+EXPOSE 3000 9229
+
+# Development command with debugging enabled
+CMD ["npm", "run", "dev"]

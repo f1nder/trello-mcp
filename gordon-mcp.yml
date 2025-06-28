@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  trello-mcp:
+    build: .
+    container_name: trello-mcp-gordon
+    environment:
+      - TRELLO_API_KEY=${TRELLO_API_KEY}
+      - TRELLO_TOKEN=${TRELLO_TOKEN}
+      - LOG_LEVEL=info
+      - API_TIMEOUT=10000
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - gordon-mcp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('Gordon MCP Health Check')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  gordon-mcp:
+    driver: bridge
