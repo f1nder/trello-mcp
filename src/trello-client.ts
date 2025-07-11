@@ -25,6 +25,8 @@ export class TrelloApiError extends Error {
 export class TrelloClient {
   private client: AxiosInstance;
   private credentials: TrelloApiCredentials;
+  private cache = new Map<string, { data: any; timestamp: number }>();
+  private rateLimitDelay = 500; // 500ms delay between requests
 
   constructor() {
     this.credentials = {
@@ -44,6 +46,11 @@ export class TrelloClient {
     this.setupInterceptors();
   }
 
+  private async requestWithRateLimit<T>(config: any): Promise<AxiosResponse<T>> {
+    await new Promise(resolve => setTimeout(resolve, this.rateLimitDelay));
+    return this.client.request<T>(config);
+  }
+
   private setupInterceptors(): void {
     this.client.interceptors.request.use(
       (config) => {
@@ -60,12 +67,22 @@ export class TrelloClient {
         if (process.env.LOG_LEVEL === 'debug') {
           console.log(`[Trello API] Response ${response.status} for ${response.config.url}`);
         }
+        if (response.config.method === 'get' && response.config.url) {
+          this.cache.set(response.config.url, { data: response.data, timestamp: Date.now() });
+        }
         return response;
       },
-      (error: AxiosError) => {
+      async (error: any) => {
+        const { config, response } = error;
+        if (response?.status === 429 && config) {
+          // Retry with exponential backoff
+          const retryAfter = parseInt(response.headers['retry-after'] || '1', 10) * 1000;
+          await new Promise(resolve => setTimeout(resolve, retryAfter));
+          return this.client.request(config);
+        }
         const message = this.getErrorMessage(error);
         const status = error.response?.status || 500;
-        throw new TrelloApiError(message, status, error);
+        return Promise.reject(new TrelloApiError(message, status, error));
       }
     );
   }
@@ -86,12 +103,24 @@ export class TrelloClient {
 
   // Board operations
   async getBoards(): Promise<TrelloBoard[]> {
-    const response = await this.client.get<TrelloBoard[]>('/members/me/boards');
+    const cacheKey = '/members/me/boards';
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 60000)) { // 1 minute cache
+      return cached.data;
+    }
+    const response = await this.requestWithRateLimit<TrelloBoard[]>({ method: 'get', url: cacheKey });
     return response.data;
   }
 
   async getBoard(boardId: string): Promise<TrelloBoard> {
-    const response = await this.client.get<TrelloBoard>(`/boards/${boardId}`, {
+    const cacheKey = `/boards/${boardId}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 60000)) { // 1 minute cache
+      return cached.data;
+    }
+    const response = await this.requestWithRateLimit<TrelloBoard>({
+      method: 'get',
+      url: cacheKey,
       params: {
         lists: 'open',
         cards: 'open',
@@ -104,51 +133,72 @@ export class TrelloClient {
   }
 
   async getBoardMembers(boardId: string): Promise<TrelloMember[]> {
-    const response = await this.client.get<TrelloMember[]>(`/boards/${boardId}/members`);
+    const cacheKey = `/boards/${boardId}/members`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 60000)) { // 1 minute cache
+      return cached.data;
+    }
+    const response = await this.requestWithRateLimit<TrelloMember[]>({ method: 'get', url: cacheKey });
     return response.data;
   }
 
   // List operations
   async getLists(boardId: string): Promise<TrelloList[]> {
-    const response = await this.client.get<TrelloList[]>(`/boards/${boardId}/lists`);
+    const cacheKey = `/boards/${boardId}/lists`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 60000)) { // 1 minute cache
+      return cached.data;
+    }
+    const response = await this.requestWithRateLimit<TrelloList[]>({ method: 'get', url: cacheKey });
     return response.data;
   }
 
   async createList(boardId: string, name: string, pos?: string): Promise<TrelloList> {
-    const response = await this.client.post<TrelloList>('/lists', {
-      name,
-      idBoard: boardId,
-      pos: pos || 'bottom',
+    const response = await this.requestWithRateLimit<TrelloList>({
+      method: 'post',
+      url: '/lists',
+      data: { name, idBoard: boardId, pos: pos || 'bottom' },
     });
     return response.data;
   }
 
   async updateList(listId: string, updates: Partial<TrelloList>): Promise<TrelloList> {
-    const response = await this.client.put<TrelloList>(`/lists/${listId}`, updates);
+    const response = await this.requestWithRateLimit<TrelloList>({
+      method: 'put',
+      url: `/lists/${listId}`,
+      data: updates,
+    });
     return response.data;
   }
 
   // Card operations
   async getCards(boardId?: string, listId?: string): Promise<TrelloCard[]> {
+    let url: string;
     if (listId) {
-      const response = await this.client.get<TrelloCard[]>(`/lists/${listId}/cards`);
-      return response.data;
+      url = `/lists/${listId}/cards`;
     } else if (boardId) {
-      const response = await this.client.get<TrelloCard[]>(`/boards/${boardId}/cards`);
-      return response.data;
+      url = `/boards/${boardId}/cards`;
     } else {
       throw new TrelloApiError('Either boardId or listId must be provided', 400);
     }
+    const cached = this.cache.get(url);
+    if (cached && (Date.now() - cached.timestamp < 60000)) { // 1 minute cache
+      return cached.data;
+    }
+    const response = await this.requestWithRateLimit<TrelloCard[]>({ method: 'get', url });
+    return response.data;
   }
 
   async getCard(cardId: string): Promise<TrelloCard> {
-    const response = await this.client.get<TrelloCard>(`/cards/${cardId}`, {
-      params: {
-        members: 'true',
-        labels: 'true',
-        checklists: 'all',
-        attachments: 'true',
-      },
+    const cacheKey = `/cards/${cardId}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 60000)) { // 1 minute cache
+      return cached.data;
+    }
+    const response = await this.requestWithRateLimit<TrelloCard>({
+      method: 'get',
+      url: cacheKey,
+      params: { members: 'true', labels: 'true', checklists: 'all', attachments: 'true' },
     });
     return response.data;
   }
@@ -160,83 +210,112 @@ export class TrelloClient {
     due?: string,
     pos?: string
   ): Promise<TrelloCard> {
-    const response = await this.client.post<TrelloCard>('/cards', {
-      name,
-      desc: desc || '',
-      due,
-      idList: listId,
-      pos: pos || 'bottom',
+    const response = await this.requestWithRateLimit<TrelloCard>({
+      method: 'post',
+      url: '/cards',
+      data: { name, desc: desc || '', due, idList: listId, pos: pos || 'bottom' },
     });
     return response.data;
   }
 
   async updateCard(cardId: string, updates: Partial<TrelloCard>): Promise<TrelloCard> {
-    const response = await this.client.put<TrelloCard>(`/cards/${cardId}`, updates);
+    const response = await this.requestWithRateLimit<TrelloCard>({
+      method: 'put',
+      url: `/cards/${cardId}`,
+      data: updates,
+    });
     return response.data;
   }
 
   async moveCard(cardId: string, listId: string, pos?: string): Promise<TrelloCard> {
-    const response = await this.client.put<TrelloCard>(`/cards/${cardId}`, {
-      idList: listId,
-      pos: pos || 'bottom',
+    const response = await this.requestWithRateLimit<TrelloCard>({
+      method: 'put',
+      url: `/cards/${cardId}`,
+      data: { idList: listId, pos: pos || 'bottom' },
     });
     return response.data;
   }
 
   async deleteCard(cardId: string): Promise<void> {
-    await this.client.delete(`/cards/${cardId}`);
+    await this.requestWithRateLimit<void>({ method: 'delete', url: `/cards/${cardId}` });
   }
 
   // Member operations
   async addCardMember(cardId: string, memberId: string): Promise<void> {
-    await this.client.post(`/cards/${cardId}/idMembers`, { value: memberId });
+    await this.requestWithRateLimit<void>({
+      method: 'post',
+      url: `/cards/${cardId}/idMembers`,
+      data: { value: memberId },
+    });
   }
 
   async removeCardMember(cardId: string, memberId: string): Promise<void> {
-    await this.client.delete(`/cards/${cardId}/idMembers/${memberId}`);
+    await this.requestWithRateLimit<void>({
+      method: 'delete',
+      url: `/cards/${cardId}/idMembers/${memberId}`,
+    });
   }
 
   // Label operations
   async getLabels(boardId: string): Promise<TrelloLabel[]> {
-    const response = await this.client.get<TrelloLabel[]>(`/boards/${boardId}/labels`);
+    const cacheKey = `/boards/${boardId}/labels`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 60000)) { // 1 minute cache
+      return cached.data;
+    }
+    const response = await this.requestWithRateLimit<TrelloLabel[]>({ method: 'get', url: cacheKey });
     return response.data;
   }
 
   async addCardLabel(cardId: string, labelId: string): Promise<void> {
-    await this.client.post(`/cards/${cardId}/idLabels`, { value: labelId });
+    await this.requestWithRateLimit<void>({
+      method: 'post',
+      url: `/cards/${cardId}/idLabels`,
+      data: { value: labelId },
+    });
   }
 
   async removeCardLabel(cardId: string, labelId: string): Promise<void> {
-    await this.client.delete(`/cards/${cardId}/idLabels/${labelId}`);
+    await this.requestWithRateLimit<void>({
+      method: 'delete',
+      url: `/cards/${cardId}/idLabels/${labelId}`,
+    });
   }
 
   async createLabel(boardId: string, name: string, color: string): Promise<TrelloLabel> {
-    const response = await this.client.post<TrelloLabel>('/labels', {
-      name,
-      color,
-      idBoard: boardId,
+    const response = await this.requestWithRateLimit<TrelloLabel>({
+      method: 'post',
+      url: '/labels',
+      data: { name, color, idBoard: boardId },
     });
     return response.data;
   }
 
   // Checklist operations
   async getCardChecklists(cardId: string): Promise<TrelloChecklist[]> {
-    const response = await this.client.get<TrelloChecklist[]>(`/cards/${cardId}/checklists`);
+    const cacheKey = `/cards/${cardId}/checklists`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 60000)) { // 1 minute cache
+      return cached.data;
+    }
+    const response = await this.requestWithRateLimit<TrelloChecklist[]>({ method: 'get', url: cacheKey });
     return response.data;
   }
 
   async createChecklist(cardId: string, name: string): Promise<TrelloChecklist> {
-    const response = await this.client.post<TrelloChecklist>('/checklists', {
-      idCard: cardId,
-      name,
+    const response = await this.requestWithRateLimit<TrelloChecklist>({
+      method: 'post',
+      url: '/checklists',
+      data: { idCard: cardId, name },
     });
     return response.data;
   }
 
   async addChecklistItem(checklistId: string, name: string, pos?: string): Promise<TrelloChecklistItem> {
-    const response = await this.client.post<TrelloChecklistItem>(`/checklists/${checklistId}/checkItems`, {
-      name,
-      pos: pos || 'bottom',
+    const response = await this.requestWithRateLimit<TrelloChecklistItem>({
+      method: 'post',
+      url: `/checklists/${checklistId}/checkItems`,
+      data: { name, pos: pos || 'bottom' },
     });
     return response.data;
   }
@@ -246,6 +325,14 @@ export class TrelloClient {
     itemId: string,
     state: 'complete' | 'incomplete'
   ): Promise<void> {
-    await this.client.put(`/cards/${cardId}/checkItem/${itemId}`, { state });
+    await this.requestWithRateLimit<void>({
+      method: 'put',
+      url: `/cards/${cardId}/checkItem/${itemId}`,
+      data: { state },
+    });
+  }
+
+  async deleteChecklist(checklistId: string): Promise<void> {
+    await this.requestWithRateLimit<void>({ method: 'delete', url: `/checklists/${checklistId}` });
   }
 }

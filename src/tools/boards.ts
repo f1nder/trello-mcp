@@ -1,14 +1,7 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
 import { TrelloClient } from '../trello-client.js';
-
-const GetBoardSchema = z.object({
-  boardId: z.string().min(1, 'Board ID is required'),
-});
-
-const GetBoardMembersSchema = z.object({
-  boardId: z.string().min(1, 'Board ID is required'),
-});
+import { UnknownToolError, errorHandler } from '../error-handler.js';
+import { GetBoardSchema, GetBoardMembersSchema } from '../validation/boards.js';
 
 export const boardTools = {
   getToolDefinitions(): Tool[] {
@@ -61,40 +54,33 @@ export const boardTools = {
     name: string,
     args: any,
     trelloClient: TrelloClient
-  ): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-    switch (name) {
-      case 'list_boards':
-        return await this.listBoards(trelloClient);
+  ): Promise<any> {
+    try {
+      switch (name) {
+        case 'list_boards':
+          return await this.listBoards(trelloClient);
 
-      case 'get_board':
-        return await this.getBoard(args, trelloClient);
+        case 'get_board':
+          return await this.getBoard(args, trelloClient);
 
-      case 'get_board_members':
-        return await this.getBoardMembers(args, trelloClient);
+        case 'get_board_members':
+          return await this.getBoardMembers(args, trelloClient);
 
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+        default:
+          throw new UnknownToolError(name);
+      }
+    } catch (error) {
+      return errorHandler(error);
     }
   },
 
   async listBoards(trelloClient: TrelloClient) {
     const boards = await trelloClient.getBoards();
-    
-    const boardsList = boards.map(board => ({
-      id: board.id,
-      name: board.name,
-      description: board.desc,
-      url: board.url,
-      closed: board.closed,
-      starred: board.starred,
-      lastActivity: board.dateLastActivity,
-    }));
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(boardsList, null, 2),
+          text: JSON.stringify(boards, null, 2),
         },
       ],
     };
@@ -103,52 +89,11 @@ export const boardTools = {
   async getBoard(args: any, trelloClient: TrelloClient) {
     const { boardId } = GetBoardSchema.parse(args);
     const board = await trelloClient.getBoard(boardId);
-
-    const boardInfo = {
-      id: board.id,
-      name: board.name,
-      description: board.desc,
-      url: board.url,
-      shortUrl: board.shortUrl,
-      closed: board.closed,
-      starred: board.starred,
-      lastActivity: board.dateLastActivity,
-      lists: board.lists?.map(list => ({
-        id: list.id,
-        name: list.name,
-        closed: list.closed,
-        position: list.pos,
-      })),
-      cards: board.cards?.map(card => ({
-        id: card.id,
-        name: card.name,
-        description: card.desc,
-        listId: card.idList,
-        closed: card.closed,
-        due: card.due,
-        dueComplete: card.dueComplete,
-        url: card.url,
-        members: card.idMembers,
-        labels: card.idLabels,
-      })),
-      labels: board.labels?.map(label => ({
-        id: label.id,
-        name: label.name,
-        color: label.color,
-      })),
-      members: board.memberships?.map(membership => ({
-        id: membership.idMember,
-        type: membership.memberType,
-        unconfirmed: membership.unconfirmed,
-        deactivated: membership.deactivated,
-      })),
-    };
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(boardInfo, null, 2),
+          text: JSON.stringify(board, null, 2),
         },
       ],
     };
@@ -157,20 +102,11 @@ export const boardTools = {
   async getBoardMembers(args: any, trelloClient: TrelloClient) {
     const { boardId } = GetBoardMembersSchema.parse(args);
     const members = await trelloClient.getBoardMembers(boardId);
-
-    const membersList = members.map(member => ({
-      id: member.id,
-      username: member.username,
-      fullName: member.fullName,
-      initials: member.initials,
-      avatarUrl: member.avatarUrl,
-    }));
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(membersList, null, 2),
+          text: JSON.stringify(members, null, 2),
         },
       ],
     };

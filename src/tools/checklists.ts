@@ -1,27 +1,13 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
 import { TrelloClient } from '../trello-client.js';
-
-const GetCardChecklistsSchema = z.object({
-  cardId: z.string().min(1, 'Card ID is required'),
-});
-
-const CreateChecklistSchema = z.object({
-  cardId: z.string().min(1, 'Card ID is required'),
-  name: z.string().min(1, 'Checklist name is required'),
-});
-
-const AddChecklistItemSchema = z.object({
-  checklistId: z.string().min(1, 'Checklist ID is required'),
-  name: z.string().min(1, 'Item name is required'),
-  position: z.string().optional(),
-});
-
-const UpdateChecklistItemSchema = z.object({
-  cardId: z.string().min(1, 'Card ID is required'),
-  itemId: z.string().min(1, 'Item ID is required'),
-  state: z.enum(['complete', 'incomplete']),
-});
+import { UnknownToolError, errorHandler } from '../error-handler.js';
+import {
+  GetCardChecklistsSchema,
+  CreateChecklistSchema,
+  AddChecklistItemSchema,
+  UpdateChecklistItemSchema,
+  DeleteChecklistSchema,
+} from '../validation/checklists.js';
 
 export const checklistTools = {
   getToolDefinitions(): Tool[] {
@@ -104,6 +90,20 @@ export const checklistTools = {
           required: ['cardId', 'itemId', 'state'],
         },
       },
+      {
+        name: 'delete_checklist',
+        description: 'Delete a checklist from a card',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            checklistId: {
+              type: 'string',
+              description: 'The ID of the checklist to delete',
+            },
+          },
+          required: ['checklistId'],
+        },
+      },
     ];
   },
 
@@ -113,6 +113,7 @@ export const checklistTools = {
       'create_checklist',
       'add_checklist_item',
       'update_checklist_item',
+      'delete_checklist',
     ].includes(name);
   },
 
@@ -120,54 +121,40 @@ export const checklistTools = {
     name: string,
     args: any,
     trelloClient: TrelloClient
-  ): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-    switch (name) {
-      case 'get_card_checklists':
-        return await this.getCardChecklists(args, trelloClient);
+  ): Promise<any> {
+    try {
+      switch (name) {
+        case 'get_card_checklists':
+          return await this.getCardChecklists(args, trelloClient);
 
-      case 'create_checklist':
-        return await this.createChecklist(args, trelloClient);
+        case 'create_checklist':
+          return await this.createChecklist(args, trelloClient);
 
-      case 'add_checklist_item':
-        return await this.addChecklistItem(args, trelloClient);
+        case 'add_checklist_item':
+          return await this.addChecklistItem(args, trelloClient);
 
-      case 'update_checklist_item':
-        return await this.updateChecklistItem(args, trelloClient);
+        case 'update_checklist_item':
+          return await this.updateChecklistItem(args, trelloClient);
 
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+        case 'delete_checklist':
+          return await this.deleteChecklist(args, trelloClient);
+
+        default:
+          throw new UnknownToolError(name);
+      }
+    } catch (error) {
+      return errorHandler(error);
     }
   },
 
   async getCardChecklists(args: any, trelloClient: TrelloClient) {
     const { cardId } = GetCardChecklistsSchema.parse(args);
     const checklists = await trelloClient.getCardChecklists(cardId);
-
-    const checklistsInfo = checklists.map(checklist => ({
-      id: checklist.id,
-      name: checklist.name,
-      cardId: checklist.idCard,
-      boardId: checklist.idBoard,
-      position: checklist.pos,
-      checkItems: checklist.checkItems.map(item => ({
-        id: item.id,
-        name: item.name,
-        state: item.state,
-        position: item.pos,
-        due: item.due,
-        idMember: item.idMember,
-      })),
-      progress: {
-        total: checklist.checkItems.length,
-        completed: checklist.checkItems.filter(item => item.state === 'complete').length,
-      },
-    }));
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(checklistsInfo, null, 2),
+          text: JSON.stringify(checklists, null, 2),
         },
       ],
     };
@@ -176,22 +163,11 @@ export const checklistTools = {
   async createChecklist(args: any, trelloClient: TrelloClient) {
     const { cardId, name } = CreateChecklistSchema.parse(args);
     const checklist = await trelloClient.createChecklist(cardId, name);
-
-    const checklistInfo = {
-      id: checklist.id,
-      name: checklist.name,
-      cardId: checklist.idCard,
-      boardId: checklist.idBoard,
-      position: checklist.pos,
-      checkItems: checklist.checkItems,
-      message: `Successfully created checklist "${name}" on card ${cardId}`,
-    };
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(checklistInfo, null, 2),
+          text: JSON.stringify(checklist, null, 2),
         },
       ],
     };
@@ -200,23 +176,11 @@ export const checklistTools = {
   async addChecklistItem(args: any, trelloClient: TrelloClient) {
     const { checklistId, name, position } = AddChecklistItemSchema.parse(args);
     const item = await trelloClient.addChecklistItem(checklistId, name, position);
-
-    const itemInfo = {
-      id: item.id,
-      name: item.name,
-      state: item.state,
-      position: item.pos,
-      checklistId: item.idChecklist,
-      due: item.due,
-      idMember: item.idMember,
-      message: `Successfully added item "${name}" to checklist ${checklistId}`,
-    };
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(itemInfo, null, 2),
+          text: JSON.stringify(item, null, 2),
         },
       ],
     };
@@ -225,17 +189,24 @@ export const checklistTools = {
   async updateChecklistItem(args: any, trelloClient: TrelloClient) {
     const { cardId, itemId, state } = UpdateChecklistItemSchema.parse(args);
     await trelloClient.updateChecklistItem(cardId, itemId, state);
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify({
-            cardId,
-            itemId,
-            state,
-            message: `Successfully updated checklist item ${itemId} to ${state}`,
-          }, null, 2),
+          text: `Successfully updated checklist item ${itemId} to ${state}`,
+        },
+      ],
+    };
+  },
+
+  async deleteChecklist(args: any, trelloClient: TrelloClient) {
+    const { checklistId } = DeleteChecklistSchema.parse(args);
+    await trelloClient.deleteChecklist(checklistId);
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `Successfully deleted checklist ${checklistId}`,
         },
       ],
     };

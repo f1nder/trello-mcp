@@ -1,23 +1,11 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
 import { TrelloClient } from '../trello-client.js';
-
-const GetLabelsSchema = z.object({
-  boardId: z.string().min(1, 'Board ID is required'),
-});
-
-const CreateLabelSchema = z.object({
-  boardId: z.string().min(1, 'Board ID is required'),
-  name: z.string().min(1, 'Label name is required'),
-  color: z.enum([
-    'yellow', 'purple', 'blue', 'red', 'green', 'orange', 'black', 'sky', 'pink', 'lime'
-  ]),
-});
-
-const CardLabelSchema = z.object({
-  cardId: z.string().min(1, 'Card ID is required'),
-  labelId: z.string().min(1, 'Label ID is required'),
-});
+import { UnknownToolError, errorHandler } from '../error-handler.js';
+import {
+  GetLabelsSchema,
+  CreateLabelSchema,
+  CardLabelSchema,
+} from '../validation/labels.js';
 
 export const labelTools = {
   getToolDefinitions(): Tool[] {
@@ -106,42 +94,37 @@ export const labelTools = {
     name: string,
     args: any,
     trelloClient: TrelloClient
-  ): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-    switch (name) {
-      case 'get_labels':
-        return await this.getLabels(args, trelloClient);
+  ): Promise<any> {
+    try {
+      switch (name) {
+        case 'get_labels':
+          return await this.getLabels(args, trelloClient);
 
-      case 'create_label':
-        return await this.createLabel(args, trelloClient);
+        case 'create_label':
+          return await this.createLabel(args, trelloClient);
 
-      case 'add_card_label':
-        return await this.addCardLabel(args, trelloClient);
+        case 'add_card_label':
+          return await this.addCardLabel(args, trelloClient);
 
-      case 'remove_card_label':
-        return await this.removeCardLabel(args, trelloClient);
+        case 'remove_card_label':
+          return await this.removeCardLabel(args, trelloClient);
 
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+        default:
+          throw new UnknownToolError(name);
+      }
+    } catch (error) {
+      return errorHandler(error);
     }
   },
 
   async getLabels(args: any, trelloClient: TrelloClient) {
     const { boardId } = GetLabelsSchema.parse(args);
     const labels = await trelloClient.getLabels(boardId);
-
-    const labelsList = labels.map(label => ({
-      id: label.id,
-      name: label.name,
-      color: label.color,
-      boardId: label.idBoard,
-      uses: label.uses,
-    }));
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(labelsList, null, 2),
+          text: JSON.stringify(labels, null, 2),
         },
       ],
     };
@@ -150,21 +133,11 @@ export const labelTools = {
   async createLabel(args: any, trelloClient: TrelloClient) {
     const { boardId, name, color } = CreateLabelSchema.parse(args);
     const label = await trelloClient.createLabel(boardId, name, color);
-
-    const labelInfo = {
-      id: label.id,
-      name: label.name,
-      color: label.color,
-      boardId: label.idBoard,
-      uses: label.uses,
-      message: `Successfully created label "${name}" with color ${color} on board ${boardId}`,
-    };
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(labelInfo, null, 2),
+          text: JSON.stringify(label, null, 2),
         },
       ],
     };
@@ -173,16 +146,11 @@ export const labelTools = {
   async addCardLabel(args: any, trelloClient: TrelloClient) {
     const { cardId, labelId } = CardLabelSchema.parse(args);
     await trelloClient.addCardLabel(cardId, labelId);
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify({
-            cardId,
-            labelId,
-            message: `Successfully added label ${labelId} to card ${cardId}`,
-          }, null, 2),
+          text: `Successfully added label ${labelId} to card ${cardId}`,
         },
       ],
     };
@@ -191,16 +159,11 @@ export const labelTools = {
   async removeCardLabel(args: any, trelloClient: TrelloClient) {
     const { cardId, labelId } = CardLabelSchema.parse(args);
     await trelloClient.removeCardLabel(cardId, labelId);
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify({
-            cardId,
-            labelId,
-            message: `Successfully removed label ${labelId} from card ${cardId}`,
-          }, null, 2),
+          text: `Successfully removed label ${labelId} from card ${cardId}`,
         },
       ],
     };

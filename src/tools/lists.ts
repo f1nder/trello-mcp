@@ -1,23 +1,11 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
 import { TrelloClient } from '../trello-client.js';
-
-const GetListsSchema = z.object({
-  boardId: z.string().min(1, 'Board ID is required'),
-});
-
-const CreateListSchema = z.object({
-  boardId: z.string().min(1, 'Board ID is required'),
-  name: z.string().min(1, 'List name is required'),
-  position: z.string().optional(),
-});
-
-const UpdateListSchema = z.object({
-  listId: z.string().min(1, 'List ID is required'),
-  name: z.string().optional(),
-  closed: z.boolean().optional(),
-  position: z.number().optional(),
-});
+import { UnknownToolError, errorHandler } from '../error-handler.js';
+import {
+  GetListsSchema,
+  CreateListSchema,
+  UpdateListSchema,
+} from '../validation/lists.js';
 
 export const listTools = {
   getToolDefinitions(): Tool[] {
@@ -96,40 +84,34 @@ export const listTools = {
     name: string,
     args: any,
     trelloClient: TrelloClient
-  ): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-    switch (name) {
-      case 'get_lists':
-        return await this.getLists(args, trelloClient);
+  ): Promise<any> {
+    try {
+      switch (name) {
+        case 'get_lists':
+          return await this.getLists(args, trelloClient);
 
-      case 'create_list':
-        return await this.createList(args, trelloClient);
+        case 'create_list':
+          return await this.createList(args, trelloClient);
 
-      case 'update_list':
-        return await this.updateList(args, trelloClient);
+        case 'update_list':
+          return await this.updateList(args, trelloClient);
 
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+        default:
+          throw new UnknownToolError(name);
+      }
+    } catch (error) {
+      return errorHandler(error);
     }
   },
 
   async getLists(args: any, trelloClient: TrelloClient) {
     const { boardId } = GetListsSchema.parse(args);
     const lists = await trelloClient.getLists(boardId);
-
-    const listInfo = lists.map(list => ({
-      id: list.id,
-      name: list.name,
-      closed: list.closed,
-      position: list.pos,
-      boardId: list.idBoard,
-      subscribed: list.subscribed,
-    }));
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(listInfo, null, 2),
+          text: JSON.stringify(lists, null, 2),
         },
       ],
     };
@@ -138,21 +120,11 @@ export const listTools = {
   async createList(args: any, trelloClient: TrelloClient) {
     const { boardId, name, position } = CreateListSchema.parse(args);
     const list = await trelloClient.createList(boardId, name, position);
-
-    const listInfo = {
-      id: list.id,
-      name: list.name,
-      closed: list.closed,
-      position: list.pos,
-      boardId: list.idBoard,
-      message: `Successfully created list "${name}" in board ${boardId}`,
-    };
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(listInfo, null, 2),
+          text: JSON.stringify(list, null, 2),
         },
       ],
     };
@@ -160,30 +132,12 @@ export const listTools = {
 
   async updateList(args: any, trelloClient: TrelloClient) {
     const { listId, ...updates } = UpdateListSchema.parse(args);
-    
-    // Convert position to pos for API compatibility
-    const apiUpdates: any = { ...updates };
-    if (updates.position !== undefined) {
-      apiUpdates.pos = updates.position;
-      delete apiUpdates.position;
-    }
-
-    const list = await trelloClient.updateList(listId, apiUpdates);
-
-    const listInfo = {
-      id: list.id,
-      name: list.name,
-      closed: list.closed,
-      position: list.pos,
-      boardId: list.idBoard,
-      message: `Successfully updated list ${listId}`,
-    };
-
+    const list = await trelloClient.updateList(listId, updates);
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(listInfo, null, 2),
+          text: JSON.stringify(list, null, 2),
         },
       ],
     };

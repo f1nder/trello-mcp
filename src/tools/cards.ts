@@ -1,49 +1,15 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
 import { TrelloClient } from '../trello-client.js';
-
-const GetCardsSchema = z.object({
-  boardId: z.string().optional(),
-  listId: z.string().optional(),
-}).refine(data => data.boardId || data.listId, {
-  message: 'Either boardId or listId must be provided',
-});
-
-const GetCardSchema = z.object({
-  cardId: z.string().min(1, 'Card ID is required'),
-});
-
-const CreateCardSchema = z.object({
-  listId: z.string().min(1, 'List ID is required'),
-  name: z.string().min(1, 'Card name is required'),
-  description: z.string().optional(),
-  due: z.string().optional(),
-  position: z.string().optional(),
-});
-
-const UpdateCardSchema = z.object({
-  cardId: z.string().min(1, 'Card ID is required'),
-  name: z.string().optional(),
-  description: z.string().optional(),
-  due: z.string().optional(),
-  dueComplete: z.boolean().optional(),
-  closed: z.boolean().optional(),
-});
-
-const MoveCardSchema = z.object({
-  cardId: z.string().min(1, 'Card ID is required'),
-  listId: z.string().min(1, 'Target list ID is required'),
-  position: z.string().optional(),
-});
-
-const DeleteCardSchema = z.object({
-  cardId: z.string().min(1, 'Card ID is required'),
-});
-
-const CardMemberSchema = z.object({
-  cardId: z.string().min(1, 'Card ID is required'),
-  memberId: z.string().min(1, 'Member ID is required'),
-});
+import { UnknownToolError, errorHandler } from '../error-handler.js';
+import {
+  GetCardsSchema,
+  GetCardSchema,
+  CreateCardSchema,
+  UpdateCardSchema,
+  MoveCardSchema,
+  DeleteCardSchema,
+  CardMemberSchema,
+} from '../validation/cards.js';
 
 export const cardTools = {
   getToolDefinitions(): Tool[] {
@@ -238,72 +204,49 @@ export const cardTools = {
     name: string,
     args: any,
     trelloClient: TrelloClient
-  ): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-    switch (name) {
-      case 'get_cards':
-        return await this.getCards(args, trelloClient);
+  ): Promise<any> {
+    try {
+      switch (name) {
+        case 'get_cards':
+          return await this.getCards(args, trelloClient);
 
-      case 'get_card':
-        return await this.getCard(args, trelloClient);
+        case 'get_card':
+          return await this.getCard(args, trelloClient);
 
-      case 'create_card':
-        return await this.createCard(args, trelloClient);
+        case 'create_card':
+          return await this.createCard(args, trelloClient);
 
-      case 'update_card':
-        return await this.updateCard(args, trelloClient);
+        case 'update_card':
+          return await this.updateCard(args, trelloClient);
 
-      case 'move_card':
-        return await this.moveCard(args, trelloClient);
+        case 'move_card':
+          return await this.moveCard(args, trelloClient);
 
-      case 'delete_card':
-        return await this.deleteCard(args, trelloClient);
+        case 'delete_card':
+          return await this.deleteCard(args, trelloClient);
 
-      case 'add_card_member':
-        return await this.addCardMember(args, trelloClient);
+        case 'add_card_member':
+          return await this.addCardMember(args, trelloClient);
 
-      case 'remove_card_member':
-        return await this.removeCardMember(args, trelloClient);
+        case 'remove_card_member':
+          return await this.removeCardMember(args, trelloClient);
 
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+        default:
+          throw new UnknownToolError(name);
+      }
+    } catch (error) {
+      return errorHandler(error);
     }
   },
 
   async getCards(args: any, trelloClient: TrelloClient) {
     const { boardId, listId } = GetCardsSchema.parse(args);
     const cards = await trelloClient.getCards(boardId, listId);
-
-    const cardsList = cards.map(card => ({
-      id: card.id,
-      name: card.name,
-      description: card.desc,
-      listId: card.idList,
-      boardId: card.idBoard,
-      closed: card.closed,
-      position: card.pos,
-      url: card.url,
-      shortUrl: card.shortUrl,
-      due: card.due,
-      dueComplete: card.dueComplete,
-      lastActivity: card.dateLastActivity,
-      members: card.idMembers,
-      labels: card.idLabels,
-      checklists: card.idChecklists,
-      badges: {
-        votes: card.badges.votes,
-        comments: card.badges.comments,
-        attachments: card.badges.attachments,
-        checkItems: card.badges.checkItems,
-        checkItemsChecked: card.badges.checkItemsChecked,
-        description: card.badges.description,
-      },
-    }));
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(cardsList, null, 2),
+          text: JSON.stringify(cards, null, 2),
         },
       ],
     };
@@ -312,58 +255,11 @@ export const cardTools = {
   async getCard(args: any, trelloClient: TrelloClient) {
     const { cardId } = GetCardSchema.parse(args);
     const card = await trelloClient.getCard(cardId);
-
-    const cardInfo = {
-      id: card.id,
-      name: card.name,
-      description: card.desc,
-      listId: card.idList,
-      boardId: card.idBoard,
-      closed: card.closed,
-      position: card.pos,
-      url: card.url,
-      shortUrl: card.shortUrl,
-      due: card.due,
-      dueComplete: card.dueComplete,
-      lastActivity: card.dateLastActivity,
-      members: card.members?.map(member => ({
-        id: member.id,
-        username: member.username,
-        fullName: member.fullName,
-        initials: member.initials,
-      })),
-      labels: card.labels?.map(label => ({
-        id: label.id,
-        name: label.name,
-        color: label.color,
-      })),
-      checklists: card.checklists?.map(checklist => ({
-        id: checklist.id,
-        name: checklist.name,
-        position: checklist.pos,
-        checkItems: checklist.checkItems.map(item => ({
-          id: item.id,
-          name: item.name,
-          state: item.state,
-          position: item.pos,
-          due: item.due,
-        })),
-      })),
-      attachments: card.attachments?.map(attachment => ({
-        id: attachment.id,
-        name: attachment.name,
-        url: attachment.url,
-        bytes: attachment.bytes,
-        date: attachment.date,
-      })),
-      badges: card.badges,
-    };
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(cardInfo, null, 2),
+          text: JSON.stringify(card, null, 2),
         },
       ],
     };
@@ -372,25 +268,11 @@ export const cardTools = {
   async createCard(args: any, trelloClient: TrelloClient) {
     const { listId, name, description, due, position } = CreateCardSchema.parse(args);
     const card = await trelloClient.createCard(listId, name, description, due, position);
-
-    const cardInfo = {
-      id: card.id,
-      name: card.name,
-      description: card.desc,
-      listId: card.idList,
-      boardId: card.idBoard,
-      url: card.url,
-      shortUrl: card.shortUrl,
-      due: card.due,
-      position: card.pos,
-      message: `Successfully created card "${name}" in list ${listId}`,
-    };
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(cardInfo, null, 2),
+          text: JSON.stringify(card, null, 2),
         },
       ],
     };
@@ -398,34 +280,12 @@ export const cardTools = {
 
   async updateCard(args: any, trelloClient: TrelloClient) {
     const { cardId, ...updates } = UpdateCardSchema.parse(args);
-    
-    // Convert description to desc for API compatibility
-    const apiUpdates: any = { ...updates };
-    if (updates.description !== undefined) {
-      apiUpdates.desc = updates.description;
-      delete apiUpdates.description;
-    }
-
-    const card = await trelloClient.updateCard(cardId, apiUpdates);
-
-    const cardInfo = {
-      id: card.id,
-      name: card.name,
-      description: card.desc,
-      listId: card.idList,
-      boardId: card.idBoard,
-      closed: card.closed,
-      due: card.due,
-      dueComplete: card.dueComplete,
-      url: card.url,
-      message: `Successfully updated card ${cardId}`,
-    };
-
+    const card = await trelloClient.updateCard(cardId, updates);
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(cardInfo, null, 2),
+          text: JSON.stringify(card, null, 2),
         },
       ],
     };
@@ -434,22 +294,11 @@ export const cardTools = {
   async moveCard(args: any, trelloClient: TrelloClient) {
     const { cardId, listId, position } = MoveCardSchema.parse(args);
     const card = await trelloClient.moveCard(cardId, listId, position);
-
-    const cardInfo = {
-      id: card.id,
-      name: card.name,
-      listId: card.idList,
-      boardId: card.idBoard,
-      position: card.pos,
-      url: card.url,
-      message: `Successfully moved card "${card.name}" to list ${listId}`,
-    };
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(cardInfo, null, 2),
+          text: JSON.stringify(card, null, 2),
         },
       ],
     };
@@ -458,15 +307,11 @@ export const cardTools = {
   async deleteCard(args: any, trelloClient: TrelloClient) {
     const { cardId } = DeleteCardSchema.parse(args);
     await trelloClient.deleteCard(cardId);
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify({
-            cardId,
-            message: `Successfully deleted card ${cardId}`,
-          }, null, 2),
+          text: `Successfully deleted card ${cardId}`,
         },
       ],
     };
@@ -475,16 +320,11 @@ export const cardTools = {
   async addCardMember(args: any, trelloClient: TrelloClient) {
     const { cardId, memberId } = CardMemberSchema.parse(args);
     await trelloClient.addCardMember(cardId, memberId);
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify({
-            cardId,
-            memberId,
-            message: `Successfully added member ${memberId} to card ${cardId}`,
-          }, null, 2),
+          text: `Successfully added member ${memberId} to card ${cardId}`,
         },
       ],
     };
@@ -493,16 +333,11 @@ export const cardTools = {
   async removeCardMember(args: any, trelloClient: TrelloClient) {
     const { cardId, memberId } = CardMemberSchema.parse(args);
     await trelloClient.removeCardMember(cardId, memberId);
-
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify({
-            cardId,
-            memberId,
-            message: `Successfully removed member ${memberId} from card ${cardId}`,
-          }, null, 2),
+          text: `Successfully removed member ${memberId} from card ${cardId}`,
         },
       ],
     };
