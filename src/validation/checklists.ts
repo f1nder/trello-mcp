@@ -24,3 +24,8 @@ export const UpdateChecklistItemSchema = z.object({
 export const DeleteChecklistSchema = z.object({
   checklistId: z.string().min(1, 'Checklist ID is required'),
 });
+
+export const DeleteChecklistItemSchema = z.object({
+  checklistId: z.string().min(1, 'Checklist ID is required'),
+  itemId: z.string().min(1, 'Item ID is required'),
+});

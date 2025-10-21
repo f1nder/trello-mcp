@@ -7,6 +7,7 @@ import {
   AddChecklistItemSchema,
   UpdateChecklistItemSchema,
   DeleteChecklistSchema,
+  DeleteChecklistItemSchema,
 } from '../validation/checklists.js';
 
 export const checklistTools = {
@@ -104,6 +105,24 @@ export const checklistTools = {
           required: ['checklistId'],
         },
       },
+      {
+        name: 'delete_checklist_item',
+        description: 'Delete a checklist item from a checklist',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            checklistId: {
+              type: 'string',
+              description: 'The ID of the checklist',
+            },
+            itemId: {
+              type: 'string',
+              description: 'The ID of the checklist item to delete',
+            },
+          },
+          required: ['checklistId', 'itemId'],
+        },
+      },
     ];
   },
 
@@ -114,6 +133,7 @@ export const checklistTools = {
       'add_checklist_item',
       'update_checklist_item',
       'delete_checklist',
+      'delete_checklist_item',
     ].includes(name);
   },
 
@@ -138,6 +158,9 @@ export const checklistTools = {
 
         case 'delete_checklist':
           return await this.deleteChecklist(args, trelloClient);
+
+        case 'delete_checklist_item':
+          return await this.deleteChecklistItem(args, trelloClient);
 
         default:
           throw new UnknownToolError(name);
@@ -207,6 +230,19 @@ export const checklistTools = {
         {
           type: 'text' as const,
           text: `Successfully deleted checklist ${checklistId}`,
+        },
+      ],
+    };
+  },
+
+  async deleteChecklistItem(args: any, trelloClient: TrelloClient) {
+    const { checklistId, itemId } = DeleteChecklistItemSchema.parse(args);
+    await trelloClient.deleteChecklistItem(checklistId, itemId);
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `Successfully deleted checklist item ${itemId} from checklist ${checklistId}`,
         },
       ],
     };
