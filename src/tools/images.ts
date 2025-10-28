@@ -1,12 +1,12 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import os from "node:os";
 import { TrelloClient } from "../trello-client.js";
 import { UnknownToolError, errorHandler } from "../error-handler.js";
 import {
-  FetchAttachmentByUrlSchema,
   FetchImageByUrlSchema,
-  DownloadAttachmentToPathSchema,
+  DownloadAttachmentToTmpSchema,
 } from "../validation/images.js";
 
 export const imageTools = {
@@ -32,9 +32,9 @@ export const imageTools = {
         },
       },
       {
-        name: "fetch_attachment_by_url",
+        name: "download_attachment_to_tmp",
         description:
-          "Fetch any Trello attachment URL using OAuth headers and return the file contents as an embedded resource",
+          "Download a Trello attachment to a temporary system directory and return its path and mime type",
         inputSchema: {
           type: "object",
           properties: {
@@ -45,35 +45,10 @@ export const imageTools = {
             fileName: {
               type: "string",
               description:
-                "Optional friendly file name included in the returned resource metadata",
+                "Optional file name override for the downloaded attachment",
             },
           },
           required: ["url"],
-        },
-      },
-      {
-        name: "download_attachment_to_path",
-        description:
-          "Download a Trello attachment to the specified local path and return metadata about the saved file",
-        inputSchema: {
-          type: "object",
-          properties: {
-            url: {
-              type: "string",
-              description: "The Trello attachment URL to fetch",
-            },
-            destinationPath: {
-              type: "string",
-              description:
-                "The local file path (or directory) where the attachment should be written",
-            },
-            fileName: {
-              type: "string",
-              description:
-                "Optional file name override when destinationPath points to a directory",
-            },
-          },
-          required: ["url", "destinationPath"],
         },
       },
     ];
@@ -82,8 +57,7 @@ export const imageTools = {
   hasToolHandler(name: string): boolean {
     return [
       "fetch_image_by_url",
-      "fetch_attachment_by_url",
-      "download_attachment_to_path",
+      "download_attachment_to_tmp",
     ].includes(name);
   },
 
@@ -96,10 +70,8 @@ export const imageTools = {
       switch (name) {
         case "fetch_image_by_url":
           return await this.fetchImageByUrl(args, trelloClient);
-        case "fetch_attachment_by_url":
-          return await this.fetchAttachmentByUrl(args, trelloClient);
-        case "download_attachment_to_path":
-          return await this.downloadAttachmentToPath(args, trelloClient);
+        case "download_attachment_to_tmp":
+          return await this.downloadAttachmentToTmp(args, trelloClient);
         default:
           throw new UnknownToolError(name);
       }
@@ -128,39 +100,12 @@ export const imageTools = {
       ],
     };
   },
-
-  async fetchAttachmentByUrl(
+  async downloadAttachmentToTmp(
     args: any,
     trelloClient: TrelloClient
   ): Promise<any> {
     const { url, fileName: providedFileName } =
-      FetchAttachmentByUrlSchema.parse(args);
-    const { data, mimeType: detectedMimeType, fileName: detectedFileName } =
-      await trelloClient.fetchAttachment(url);
-
-    const fallbackFileName = this.getFileNameFromUrl(url);
-    const fileName = providedFileName || detectedFileName || fallbackFileName;
-    const mimeType =
-      detectedMimeType || this.getMimeTypeFromUrl(url, "application/octet-stream");
-
-    return {
-      content: [],
-      structuredContent: {
-        type: "attachment",
-        uri: url,
-        mimeType,
-        fileName,
-        data,
-      },
-    };
-  },
-
-  async downloadAttachmentToPath(
-    args: any,
-    trelloClient: TrelloClient
-  ): Promise<any> {
-    const { url, destinationPath, fileName: providedFileName } =
-      DownloadAttachmentToPathSchema.parse(args);
+      DownloadAttachmentToTmpSchema.parse(args);
 
     const {
       data,
@@ -174,47 +119,23 @@ export const imageTools = {
       this.getFileNameFromUrl(url) ||
       "attachment";
 
-    const absoluteDestination = path.isAbsolute(destinationPath)
-      ? destinationPath
-      : path.resolve(process.cwd(), destinationPath);
+    const tempDirectory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "trello-mcp-")
+    );
+    const targetPath = path.join(tempDirectory, inferredFileName);
 
-    const destinationIndicatesDirectory =
-      destinationPath.endsWith("/") || destinationPath.endsWith("\\");
-
-    let targetPath = absoluteDestination;
-
-    try {
-      const stat = await fs.stat(absoluteDestination);
-      if (stat.isDirectory()) {
-        targetPath = path.join(absoluteDestination, inferredFileName);
-      }
-    } catch (error: any) {
-      if (error?.code !== "ENOENT") {
-        throw error;
-      }
-      if (destinationIndicatesDirectory) {
-        targetPath = path.join(absoluteDestination, inferredFileName);
-      }
-    }
-
-    const resolvedFileName = path.basename(targetPath);
     const resolvedMimeType =
       detectedMimeType ||
       this.getMimeTypeFromUrl(targetPath, "application/octet-stream");
 
-    await fs.mkdir(path.dirname(targetPath), { recursive: true });
     await fs.writeFile(targetPath, data);
-    const stats = await fs.stat(targetPath);
 
     return {
       content: [],
       structuredContent: {
         type: "attachment_download",
-        uri: url,
         path: targetPath,
-        fileName: resolvedFileName,
         mimeType: resolvedMimeType,
-        size: stats.size,
       },
     };
   },

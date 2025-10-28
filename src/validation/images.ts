@@ -6,17 +6,9 @@ const FetchByUrlSchema = z.object({
 });
 
 export const FetchImageByUrlSchema = FetchByUrlSchema;
-export const FetchAttachmentByUrlSchema = FetchByUrlSchema;
-export const DownloadAttachmentToPathSchema = FetchByUrlSchema.extend({
-  destinationPath: z
-    .string()
-    .min(1, "A destination path is required to download the attachment"),
-});
+export const DownloadAttachmentToTmpSchema = FetchByUrlSchema;
 
 export type FetchImageByUrlInput = z.infer<typeof FetchImageByUrlSchema>;
-export type FetchAttachmentByUrlInput = z.infer<
-  typeof FetchAttachmentByUrlSchema
->;
-export type DownloadAttachmentToPathInput = z.infer<
-  typeof DownloadAttachmentToPathSchema
+export type DownloadAttachmentToTmpInput = z.infer<
+  typeof DownloadAttachmentToTmpSchema
 >;

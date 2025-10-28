@@ -36,73 +36,8 @@ describe('Image and Attachment Tools', () => {
     });
   });
 
-  describe('fetch_attachment_by_url', () => {
-    it('returns embedded resource with fetched metadata when available', async () => {
-      const mockBuffer = Buffer.from('file-data');
-      mockTrelloClient.fetchAttachment.mockResolvedValue({
-        data: mockBuffer,
-        mimeType: 'application/pdf',
-        fileName: 'report.pdf',
-      });
-
-      const args = { url: 'https://example.com/files/report.pdf' };
-      const result = await imageTools.handleToolCall(
-        'fetch_attachment_by_url',
-        args,
-        mockTrelloClient
-      );
-
-      expect(mockTrelloClient.fetchAttachment).toHaveBeenCalledWith(args.url);
-      expect(result.content).toEqual([]);
-      expect(result.structuredContent).toMatchObject({
-        type: 'attachment',
-        uri: args.url,
-        mimeType: 'application/pdf',
-        fileName: 'report.pdf',
-      });
-      expect(result.structuredContent?.data).toBe(mockBuffer);
-    });
-
-    it('falls back to provided values and defaults when metadata missing', async () => {
-      const mockBuffer = Buffer.from('binary-data');
-      mockTrelloClient.fetchAttachment.mockResolvedValue({
-        data: mockBuffer,
-      });
-
-      const args = {
-        url: 'https://trello-attachments.s3.amazonaws.com/some/path/resource',
-        fileName: 'download.bin',
-      };
-      const result = await imageTools.handleToolCall(
-        'fetch_attachment_by_url',
-        args,
-        mockTrelloClient
-      );
-
-      expect(mockTrelloClient.fetchAttachment).toHaveBeenCalledWith(args.url);
-      expect(result.content).toEqual([]);
-      expect(result.structuredContent).toMatchObject({
-        type: 'attachment',
-        uri: args.url,
-        mimeType: 'application/octet-stream',
-        fileName: 'download.bin',
-      });
-      expect(result.structuredContent?.data).toBe(mockBuffer);
-    });
-  });
-
-  describe('download_attachment_to_path', () => {
-    let tempDir: string;
-
-    beforeEach(async () => {
-      tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'trello-mcp-'));
-    });
-
-    afterEach(async () => {
-      await fs.rm(tempDir, { recursive: true, force: true });
-    });
-
-    it('writes the attachment to the specified file path and returns metadata', async () => {
+  describe('download_attachment_to_tmp', () => {
+    it('downloads to tmp dir and returns path with mime type', async () => {
       const mockBuffer = Buffer.from('file-binary');
       mockTrelloClient.fetchAttachment.mockResolvedValue({
         data: mockBuffer,
@@ -110,29 +45,33 @@ describe('Image and Attachment Tools', () => {
         fileName: 'remote.bin',
       });
 
-      const destinationPath = path.join(tempDir, 'local.bin');
-      const args = { url: 'https://example.com/files/remote.bin', destinationPath };
+      const args = { url: 'https://example.com/files/remote.bin' };
 
       const result = await imageTools.handleToolCall(
-        'download_attachment_to_path',
+        'download_attachment_to_tmp',
         args,
         mockTrelloClient
       );
 
-      const written = await fs.readFile(destinationPath);
-      expect(written.equals(mockBuffer)).toBe(true);
+      const structured = result.structuredContent as {
+        type: string;
+        path: string;
+        mimeType: string;
+      };
+
+      expect(mockTrelloClient.fetchAttachment).toHaveBeenCalledWith(args.url);
       expect(result.content).toEqual([]);
-      expect(result.structuredContent).toMatchObject({
-        type: 'attachment_download',
-        uri: args.url,
-        path: destinationPath,
-        fileName: 'local.bin',
-        mimeType: 'application/octet-stream',
-      });
-      expect(result.structuredContent?.size).toBe(mockBuffer.length);
+      expect(structured.type).toBe('attachment_download');
+      expect(structured.mimeType).toBe('application/octet-stream');
+      expect(structured.path.startsWith(os.tmpdir())).toBe(true);
+
+      const written = await fs.readFile(structured.path);
+      expect(written.equals(mockBuffer)).toBe(true);
+
+      await fs.rm(path.dirname(structured.path), { recursive: true, force: true });
     });
 
-    it('treats destination as directory and derives file name', async () => {
+    it('uses detected filename when available', async () => {
       const mockBuffer = Buffer.from('pdf-data');
       mockTrelloClient.fetchAttachment.mockResolvedValue({
         data: mockBuffer,
@@ -140,26 +79,26 @@ describe('Image and Attachment Tools', () => {
         fileName: 'remote.pdf',
       });
 
-      const destinationDir = path.join(tempDir, 'nested');
-      const args = {
-        url: 'https://example.com/files/report.pdf',
-        destinationPath: `${destinationDir}${path.sep}`,
-      };
+      const args = { url: 'https://example.com/files/report.pdf' };
 
       const result = await imageTools.handleToolCall(
-        'download_attachment_to_path',
+        'download_attachment_to_tmp',
         args,
         mockTrelloClient
       );
 
-      const expectedPath = path.join(destinationDir, 'remote.pdf');
-      const written = await fs.readFile(expectedPath);
+      const structured = result.structuredContent as {
+        path: string;
+        mimeType: string;
+      };
+
+      expect(path.basename(structured.path)).toBe('remote.pdf');
+      expect(structured.mimeType).toBe('application/pdf');
+
+      const written = await fs.readFile(structured.path);
       expect(written.equals(mockBuffer)).toBe(true);
-      expect(result.structuredContent).toMatchObject({
-        path: expectedPath,
-        fileName: 'remote.pdf',
-        mimeType: 'application/pdf',
-      });
+
+      await fs.rm(path.dirname(structured.path), { recursive: true, force: true });
     });
   });
 });
