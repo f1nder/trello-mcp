@@ -29,7 +29,7 @@ describe('Reaction Tools', () => {
   describe('get_reactions', () => {
     it('returns reactions for an action', async () => {
       const args = { actionId: 'action-id' };
-      mockTrelloClient.getActionReactions.mockResolvedValue([mockReaction]);
+      mockTrelloClient.getReactions.mockResolvedValue([mockReaction]);
 
       const result = await reactionTools.handleToolCall(
         'get_reactions',
@@ -37,13 +37,13 @@ describe('Reaction Tools', () => {
         mockTrelloClient
       );
 
-      expect(mockTrelloClient.getActionReactions).toHaveBeenCalledWith('action-id');
+      expect(mockTrelloClient.getReactions).toHaveBeenCalledWith('action-id');
       expect(JSON.parse(result.content[0].text)[0]).toEqual(mockReaction);
     });
 
     it('handles errors when retrieving reactions', async () => {
       const args = { actionId: 'action-id' };
-      mockTrelloClient.getActionReactions.mockRejectedValue(new Error('Not found'));
+      mockTrelloClient.getReactions.mockRejectedValue(new Error('Not found'));
 
       const result = await reactionTools.handleToolCall(
         'get_reactions',
@@ -58,7 +58,7 @@ describe('Reaction Tools', () => {
   describe('create_reaction', () => {
     it('creates a reaction for an action', async () => {
       const args = { actionId: 'action-id', shortName: 'thumbsup' };
-      mockTrelloClient.createActionReaction.mockResolvedValue(mockReaction);
+      mockTrelloClient.createReaction.mockResolvedValue(mockReaction);
 
       const result = await reactionTools.handleToolCall(
         'create_reaction',
@@ -66,7 +66,7 @@ describe('Reaction Tools', () => {
         mockTrelloClient
       );
 
-      expect(mockTrelloClient.createActionReaction).toHaveBeenCalledWith(
+      expect(mockTrelloClient.createReaction).toHaveBeenCalledWith(
         'action-id',
         {
           shortName: 'thumbsup',
@@ -77,7 +77,7 @@ describe('Reaction Tools', () => {
 
     it('handles errors when creating a reaction', async () => {
       const args = { actionId: 'action-id', shortName: 'thumbsup' };
-      mockTrelloClient.createActionReaction.mockRejectedValue(new Error('Cannot react'));
+      mockTrelloClient.createReaction.mockRejectedValue(new Error('Cannot react'));
 
       const result = await reactionTools.handleToolCall(
         'create_reaction',
@@ -92,7 +92,7 @@ describe('Reaction Tools', () => {
   describe('delete_reaction', () => {
     it('removes a reaction from an action', async () => {
       const args = { actionId: 'action-id', reactionId: 'reaction-id' };
-      mockTrelloClient.deleteActionReaction.mockResolvedValue(undefined);
+      mockTrelloClient.deleteReaction.mockResolvedValue(undefined);
 
       const result = await reactionTools.handleToolCall(
         'delete_reaction',
@@ -100,7 +100,7 @@ describe('Reaction Tools', () => {
         mockTrelloClient
       );
 
-      expect(mockTrelloClient.deleteActionReaction).toHaveBeenCalledWith(
+      expect(mockTrelloClient.deleteReaction).toHaveBeenCalledWith(
         'action-id',
         'reaction-id'
       );
@@ -109,7 +109,7 @@ describe('Reaction Tools', () => {
 
     it('handles errors when removing a reaction', async () => {
       const args = { actionId: 'action-id', reactionId: 'reaction-id' };
-      mockTrelloClient.deleteActionReaction.mockRejectedValue(new Error('Cannot delete'));
+      mockTrelloClient.deleteReaction.mockRejectedValue(new Error('Cannot delete'));
 
       const result = await reactionTools.handleToolCall(
         'delete_reaction',
