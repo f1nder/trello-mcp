@@ -400,6 +400,11 @@ CMD ["npm", "run", "dev"]
 - `add_checklist_item` - Add item to a checklist
 - `update_checklist_item` - Update checklist item (mark complete/incomplete)
 
+### Reaction Operations
+- `get_action_reactions` - List reactions applied to a Trello action (e.g., a comment)
+- `create_action_reaction` - Add a reaction to a Trello action using emoji identifiers
+- `delete_action_reaction` - Remove an existing reaction from a Trello action
+
 ## Development
 
 ### Project Structure
@@ -412,7 +417,9 @@ trello-mcp/
 │   │   ├── boards.ts
 │   │   ├── lists.ts
 │   │   ├── cards.ts
-│   │   └── labels.ts
+│   │   ├── labels.ts
+│   │   ├── checklists.ts
+│   │   └── reactions.ts
 │   └── types/            # TypeScript type definitions
 ├── dist/                 # Compiled JavaScript
 ├── package.json

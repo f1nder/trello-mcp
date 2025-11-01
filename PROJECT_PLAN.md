@@ -179,6 +179,22 @@
 - **File**: `src/tools/checklists.ts`
 - **Estimated Time**: 5 hours
 
+### 4.3 Reaction Support
+- **Task**: Manage emoji reactions on Trello comment actions
+- **Tools to Implement**:
+  ```typescript
+  // List reactions on an action
+  get_action_reactions(actionId: string): Promise<TrelloReaction[]>
+  
+  // Add a reaction
+  create_action_reaction(actionId: string, emoji: TrelloCreateReactionInput): Promise<TrelloReaction>
+  
+  // Remove a reaction
+  delete_action_reaction(actionId: string, reactionId: string): Promise<void>
+  ```
+- **Files**: `src/tools/reactions.ts`, `src/trello-client.ts`, `src/validation/reactions.ts`
+- **Estimated Time**: 4 hours
+
 ## Phase 5: Error Handling & Validation (Days 17-19)
 
 ### 5.1 Comprehensive Error Handling
