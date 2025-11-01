@@ -8,6 +8,8 @@ import {
   TrelloLabel,
   TrelloChecklist,
   TrelloChecklistItem,
+  TrelloReaction,
+  TrelloCreateReactionInput,
   TrelloApiCredentials,
 } from "./types/trello.js";
 
@@ -356,6 +358,53 @@ export class TrelloClient {
       data: { name, color, idBoard: boardId },
     });
     return response.data;
+  }
+
+  // Reaction operations
+  async getReactions(actionId: string): Promise<TrelloReaction[]> {
+    const cacheKey = `/actions/${actionId}/reactions`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 60000) {
+      return cached.data;
+    }
+
+    const response = await this.requestWithRateLimit<TrelloReaction[]>({
+      method: "get",
+      url: cacheKey,
+    });
+
+    return response.data;
+  }
+
+  async createReaction(
+    actionId: string,
+    payload: TrelloCreateReactionInput
+  ): Promise<TrelloReaction> {
+    const data = Object.fromEntries(
+      Object.entries(payload).filter(([, value]) => value !== undefined && value !== "")
+    );
+
+    const response = await this.requestWithRateLimit<TrelloReaction>({
+      method: "post",
+      url: `/actions/${actionId}/reactions`,
+      data,
+    });
+
+    this.cache.delete(`/actions/${actionId}/reactions`);
+
+    return response.data;
+  }
+
+  async deleteReaction(
+    actionId: string,
+    reactionId: string
+  ): Promise<void> {
+    await this.requestWithRateLimit<void>({
+      method: "delete",
+      url: `/actions/${actionId}/reactions/${reactionId}`,
+    });
+
+    this.cache.delete(`/actions/${actionId}/reactions`);
   }
 
   // Checklist operations

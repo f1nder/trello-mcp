@@ -172,3 +172,32 @@ export interface TrelloApiConfig {
   timeout: number;
   credentials: TrelloApiCredentials;
 }
+
+export interface TrelloReactionEmoji {
+  unified?: string;
+  native?: string;
+  name?: string;
+  shortName?: string;
+  shortNames?: string[];
+  skinVariation?: string;
+  text?: string;
+}
+
+export interface TrelloReaction {
+  id: string;
+  idMember: string;
+  idModel: string;
+  idEmoji: string;
+  date: string;
+  modelType?: string;
+  type?: string;
+  emoji?: TrelloReactionEmoji;
+  memberCreator?: TrelloMember;
+}
+
+export interface TrelloCreateReactionInput {
+  shortName?: string;
+  unified?: string;
+  native?: string;
+  skinVariation?: string;
+}

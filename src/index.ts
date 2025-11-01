@@ -14,6 +14,7 @@ import { listTools } from "./tools/lists.js";
 import { cardTools } from "./tools/cards.js";
 import { labelTools } from "./tools/labels.js";
 import { checklistTools } from "./tools/checklists.js";
+import { reactionTools } from "./tools/reactions.js";
 import { imageTools } from "./tools/images.js";
 
 class TrelloMcpServer {
@@ -47,6 +48,7 @@ class TrelloMcpServer {
           ...cardTools.getToolDefinitions(),
           ...labelTools.getToolDefinitions(),
           ...checklistTools.getToolDefinitions(),
+          ...reactionTools.getToolDefinitions(),
           ...imageTools.getToolDefinitions(),
         ],
       };
@@ -79,6 +81,15 @@ class TrelloMcpServer {
         // Checklist tools
         if (checklistTools.hasToolHandler(name)) {
           return await checklistTools.handleToolCall(
+            name,
+            args,
+            this.trelloClient
+          );
+        }
+
+        // Reaction tools
+        if (reactionTools.hasToolHandler(name)) {
+          return await reactionTools.handleToolCall(
             name,
             args,
             this.trelloClient
