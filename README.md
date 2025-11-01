@@ -401,9 +401,9 @@ CMD ["npm", "run", "dev"]
 - `update_checklist_item` - Update checklist item (mark complete/incomplete)
 
 ### Reaction Operations
-- `get_action_reactions` - List reactions applied to a Trello action (e.g., a comment)
-- `create_action_reaction` - Add a reaction to a Trello action using emoji identifiers
-- `delete_action_reaction` - Remove an existing reaction from a Trello action
+- `get_reactions` - List reactions applied to a Trello action (e.g., a comment)
+- `create_reaction` - Add a reaction to a Trello action using emoji identifiers
+- `delete_reaction` - Remove an existing reaction from a Trello action
 
 ## Development
 

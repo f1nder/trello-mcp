@@ -361,7 +361,7 @@ export class TrelloClient {
   }
 
   // Reaction operations
-  async getActionReactions(actionId: string): Promise<TrelloReaction[]> {
+  async getReactions(actionId: string): Promise<TrelloReaction[]> {
     const cacheKey = `/actions/${actionId}/reactions`;
     const cached = this.cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < 60000) {
@@ -376,7 +376,7 @@ export class TrelloClient {
     return response.data;
   }
 
-  async createActionReaction(
+  async createReaction(
     actionId: string,
     payload: TrelloCreateReactionInput
   ): Promise<TrelloReaction> {
@@ -395,7 +395,7 @@ export class TrelloClient {
     return response.data;
   }
 
-  async deleteActionReaction(
+  async deleteReaction(
     actionId: string,
     reactionId: string
   ): Promise<void> {

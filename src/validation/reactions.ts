@@ -1,10 +1,10 @@
 import { z } from 'zod';
 
-export const GetActionReactionsSchema = z.object({
+export const GetReactionsSchema = z.object({
   actionId: z.string().min(1, 'Action ID is required'),
 });
 
-export const CreateActionReactionSchema = z
+export const CreateReactionSchema = z
   .object({
     actionId: z.string().min(1, 'Action ID is required'),
     shortName: z.string().trim().min(1, 'shortName cannot be empty').optional(),
@@ -20,7 +20,7 @@ export const CreateActionReactionSchema = z
     }
   );
 
-export const DeleteActionReactionSchema = z.object({
+export const DeleteReactionSchema = z.object({
   actionId: z.string().min(1, 'Action ID is required'),
   reactionId: z.string().min(1, 'Reaction ID is required'),
 });

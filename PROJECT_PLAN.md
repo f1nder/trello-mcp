@@ -184,13 +184,13 @@
 - **Tools to Implement**:
   ```typescript
   // List reactions on an action
-  get_action_reactions(actionId: string): Promise<TrelloReaction[]>
+  get_reactions(actionId: string): Promise<TrelloReaction[]>
   
   // Add a reaction
-  create_action_reaction(actionId: string, emoji: TrelloCreateReactionInput): Promise<TrelloReaction>
+  create_reaction(actionId: string, emoji: TrelloCreateReactionInput): Promise<TrelloReaction>
   
   // Remove a reaction
-  delete_action_reaction(actionId: string, reactionId: string): Promise<void>
+  delete_reaction(actionId: string, reactionId: string): Promise<void>
   ```
 - **Files**: `src/tools/reactions.ts`, `src/trello-client.ts`, `src/validation/reactions.ts`
 - **Estimated Time**: 4 hours

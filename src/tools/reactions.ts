@@ -3,16 +3,16 @@ import { TrelloClient } from '../trello-client.js';
 import { UnknownToolError, errorHandler } from '../error-handler.js';
 import { TrelloCreateReactionInput } from '../types/trello.js';
 import {
-  GetActionReactionsSchema,
-  CreateActionReactionSchema,
-  DeleteActionReactionSchema,
+  GetReactionsSchema,
+  CreateReactionSchema,
+  DeleteReactionSchema,
 } from '../validation/reactions.js';
 
 export const reactionTools = {
   getToolDefinitions(): Tool[] {
     return [
       {
-        name: 'get_action_reactions',
+        name: 'get_reactions',
         description: 'List all reactions attached to a specific Trello action (e.g., a comment)',
         inputSchema: {
           type: 'object',
@@ -26,7 +26,7 @@ export const reactionTools = {
         },
       },
       {
-        name: 'create_action_reaction',
+        name: 'create_reaction',
         description: 'Add a reaction to a Trello action using emoji identifiers',
         inputSchema: {
           type: 'object',
@@ -56,7 +56,7 @@ export const reactionTools = {
         },
       },
       {
-        name: 'delete_action_reaction',
+        name: 'delete_reaction',
         description: 'Remove a specific reaction from a Trello action',
         inputSchema: {
           type: 'object',
@@ -78,21 +78,21 @@ export const reactionTools = {
 
   hasToolHandler(name: string): boolean {
     return [
-      'get_action_reactions',
-      'create_action_reaction',
-      'delete_action_reaction',
+      'get_reactions',
+      'create_reaction',
+      'delete_reaction',
     ].includes(name);
   },
 
   async handleToolCall(name: string, args: any, trelloClient: TrelloClient) {
     try {
       switch (name) {
-        case 'get_action_reactions':
-          return await this.getActionReactions(args, trelloClient);
-        case 'create_action_reaction':
-          return await this.createActionReaction(args, trelloClient);
-        case 'delete_action_reaction':
-          return await this.deleteActionReaction(args, trelloClient);
+        case 'get_reactions':
+          return await this.getReactions(args, trelloClient);
+        case 'create_reaction':
+          return await this.createReaction(args, trelloClient);
+        case 'delete_reaction':
+          return await this.deleteReaction(args, trelloClient);
         default:
           throw new UnknownToolError(name);
       }
@@ -101,9 +101,9 @@ export const reactionTools = {
     }
   },
 
-  async getActionReactions(args: any, trelloClient: TrelloClient) {
-    const { actionId } = GetActionReactionsSchema.parse(args);
-    const reactions = await trelloClient.getActionReactions(actionId);
+  async getReactions(args: any, trelloClient: TrelloClient) {
+    const { actionId } = GetReactionsSchema.parse(args);
+    const reactions = await trelloClient.getReactions(actionId);
 
     return {
       content: [
@@ -115,9 +115,9 @@ export const reactionTools = {
     };
   },
 
-  async createActionReaction(args: any, trelloClient: TrelloClient) {
+  async createReaction(args: any, trelloClient: TrelloClient) {
     const { actionId, shortName, unified, native, skinVariation } =
-      CreateActionReactionSchema.parse(args);
+      CreateReactionSchema.parse(args);
 
     const payload = Object.fromEntries(
       Object.entries({ shortName, unified, native, skinVariation }).filter(
@@ -125,7 +125,7 @@ export const reactionTools = {
       )
     ) as TrelloCreateReactionInput;
 
-    const reaction = await trelloClient.createActionReaction(actionId, payload);
+    const reaction = await trelloClient.createReaction(actionId, payload);
 
     return {
       content: [
@@ -137,9 +137,9 @@ export const reactionTools = {
     };
   },
 
-  async deleteActionReaction(args: any, trelloClient: TrelloClient) {
-    const { actionId, reactionId } = DeleteActionReactionSchema.parse(args);
-    await trelloClient.deleteActionReaction(actionId, reactionId);
+  async deleteReaction(args: any, trelloClient: TrelloClient) {
+    const { actionId, reactionId } = DeleteReactionSchema.parse(args);
+    await trelloClient.deleteReaction(actionId, reactionId);
 
     return {
       content: [
